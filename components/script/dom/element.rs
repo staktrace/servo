@@ -2070,10 +2070,12 @@ impl VirtualMethods for Element {
             return;
         }
 
+        let doc = document_from_node(self);
         if let Some(ref value) = *self.id_attribute.borrow() {
-            let doc = document_from_node(self);
             doc.register_named_element(self, value.clone());
         }
+        // This is used for layout optimization.
+        doc.increment_dom_count();
     }
 
     fn unbind_from_tree(&self, context: &UnbindContext) {
@@ -2083,10 +2085,12 @@ impl VirtualMethods for Element {
             return;
         }
 
+        let doc = document_from_node(self);
         if let Some(ref value) = *self.id_attribute.borrow() {
-            let doc = document_from_node(self);
             doc.unregister_named_element(self, value.clone());
         }
+        // This is used for layout optimization.
+        doc.decrement_dom_count();
     }
 
     fn children_changed(&self, mutation: &ChildrenMutation) {
