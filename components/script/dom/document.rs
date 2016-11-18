@@ -287,6 +287,12 @@ pub struct Document {
     /// https://w3c.github.io/uievents/#event-type-dblclick
     #[ignore_heap_size_of = "Defined in std"]
     last_click_info: DOMRefCell<Option<(Instant, Point2D<f32>)>>,
+    /// Track the total number of elements in this DOM's tree.
+    /// This is sent to the layout thread every time a reflow is done;
+    /// layout uses this to determine if the gains from parallel layout will be worth the overhead.
+    ///
+    /// See also: https://github.com/servo/servo/issues/10110
+    dom_count: Cell<u32>,
 }
 
 #[derive(JSTraceable, HeapSizeOf)]
@@ -452,6 +458,22 @@ impl Document {
                        .filter_map(Root::downcast::<HTMLBaseElement>)
                        .find(|element| element.upcast::<Element>().has_attribute(&local_name!("href")));
         self.base_element.set(base.r());
+    }
+
+    pub fn dom_count(&self) -> u32 {
+        self.dom_count.get()
+    }
+
+    /// This is called by `bind_to_tree` when a node is added to the DOM.
+    /// The internal count is used by layout to determine whether to be sequential or parallel.
+    /// (it's sequential for small DOMs)
+    pub fn increment_dom_count(&self) {
+        self.dom_count.set(self.dom_count.get() + 1);
+    }
+
+    /// This is called by `unbind_from_tree` when a node is removed from the DOM.
+    pub fn decrement_dom_count(&self) {
+        self.dom_count.set(self.dom_count.get() - 1);
     }
 
     pub fn quirks_mode(&self) -> QuirksMode {
@@ -1870,6 +1892,7 @@ impl Document {
             referrer_policy: Cell::new(referrer_policy),
             target_element: MutNullableHeap::new(None),
             last_click_info: DOMRefCell::new(None),
+            dom_count: Cell::new(1),
         }
     }
 
